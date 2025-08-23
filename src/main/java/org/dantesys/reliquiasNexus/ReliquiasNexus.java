@@ -450,6 +450,62 @@ public final class ReliquiasNexus extends JavaPlugin {
             sender.sendMessage(Component.text("§2"+lang.getString("comandos.limite.sucesso")+" "+valor));
             return Command.SINGLE_SUCCESS;
         })));
+        root.then(Commands.literal("remover").then(Commands.argument("jogador", ArgumentTypes.player()).then(Commands.argument("reliquia", StringArgumentType.word()).suggests((ctx, builder) -> {
+            names.stream().filter(entry -> entry.toLowerCase().startsWith(builder.getRemainingLowerCase())).forEach(builder::suggest);
+            return builder.buildFuture();
+        }).requires(sender -> sender.getSender().isOp()).executes(ctx -> {
+            final PlayerSelectorArgumentResolver targetResolver = ctx.getArgument("jogador", PlayerSelectorArgumentResolver.class);
+            final Player p = targetResolver.resolve(ctx.getSource()).getFirst();
+            final CommandSender sender = ctx.getSource().getSender();
+            final String reliquia = ctx.getArgument("reliquia",String.class).toLowerCase();
+            Nexus n = ItemsRegistro.getFromNome(reliquia);
+            if(n != null) {
+                PlayerInventory inv = p.getInventory();
+                boolean removed = false;
+                for (ItemStack stack : inv.getContents()) {
+                    if (stack != null && stack.hasItemMeta()) {
+                        ItemMeta meta = stack.getItemMeta();
+                        PersistentDataContainer data = meta.getPersistentDataContainer();
+                        if (data.has(NEXUS.key, PersistentDataType.STRING)) {
+                            String nome = data.get(NEXUS.key, PersistentDataType.STRING);
+                            if (reliquia.equals(nome)) {
+                                inv.remove(stack);
+                                config.set("nexus." + nome, null);
+                                saveConfig();
+                                sender.sendMessage(Component.text("§2Reliquia " + reliquia + " removida de " + p.getName()));
+                                p.sendMessage(Component.text("§cSua reliquia " + reliquia + " foi removida."));
+                                removed = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!removed) {
+                    sender.sendMessage(Component.text("§cO jogador " + p.getName() + " nao possui a reliquia " + reliquia));
+                }
+            } else {
+                sender.sendMessage(Component.text("§cA reliquia " + reliquia + " nao existe."));
+            }
+            return Command.SINGLE_SUCCESS;
+        }))));
+        root.then(Commands.literal("setlevel").then(Commands.argument("level", IntegerArgumentType.integer()).requires(sender -> sender.getSender().isOp()).executes(ctx -> {
+            if(ctx.getSource().getExecutor() instanceof Player player){
+                int level = ctx.getArgument("level", int.class);
+                ItemStack stack = player.getInventory().getItemInMainHand();
+                ItemMeta meta = stack.getItemMeta();
+                PersistentDataContainer data = meta.getPersistentDataContainer();
+                if(data.has(NEXUS.key,PersistentDataType.STRING)){
+                    String nome = data.get(NEXUS.key,PersistentDataType.STRING);
+                    if(nome!=null){
+                        NamespacedKey key = NexusKeys.getKey(nome);
+                        if(key!=null){
+                            player.getPersistentDataContainer().set(key,PersistentDataType.INTEGER,level);
+                        }
+                    }
+                }
+            }else ctx.getSource().getSender().sendMessage("§c"+lang.getString("comandos.level.erro"));
+            return Command.SINGLE_SUCCESS;
+        })));
         LiteralCommandNode<CommandSourceStack> buildCommand = root.build();
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, commands -> commands.registrar().register(buildCommand));
         getServer().getPluginManager().registerEvents(new JoinQuitEvent(this), this);
